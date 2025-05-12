@@ -152,7 +152,7 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
 
         if (!result.newChildCreated) return {};
 
-        // Inserir chave promovida
+     
         auto it = upper_bound(node.keys.begin(), node.keys.end(), result.promotedKey);
         int idx = it - node.keys.begin();
         node.keys.insert(it, result.promotedKey);
@@ -284,6 +284,11 @@ void printTree() {
     }
 }
 
+int calculateHeight(int nodeId) {
+    BPlusNode node = BPlusNode::deserialize(readLineFromFile(INDEX_FILE, nodeId), nodeId);
+    if (node.isLeaf) return 1;
+    return 1 + calculateHeight(node.pointers[0]);
+}
 
 int main() {
     ifstream input(INPUT_FILE);
@@ -318,7 +323,8 @@ while (getline(input, line)) {
 }
 
 
-    output << "H/1\n"; 
+    output << "H/" << calculateHeight(0) << "\n";
+
     printTree();
 
     return 0;
