@@ -114,19 +114,19 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
     BPlusNode node = BPlusNode::deserialize(readLineFromFile(INDEX_FILE, nodeId), nodeId);
 
     if (node.isLeaf) {
-        // Inserir em folha de forma ordenada
+        
         auto it = lower_bound(node.keys.begin(), node.keys.end(), key);
         int idx = it - node.keys.begin();
         node.keys.insert(it, key);
         node.pointers.insert(node.pointers.begin() + idx, dataLine);
 
-        // Se há espaço, salva e retorna
+      
         if ((int)node.keys.size() < ORDER) {
             writeLineToFile(INDEX_FILE, nodeId, node.serialize());
             return {};
         }
 
-        // Split da folha
+       
         BPlusNode newLeaf;
         newLeaf.id = nextNodeId++;
         newLeaf.isLeaf = true;
@@ -145,7 +145,7 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
 
         return {true, newLeaf.keys[0], newLeaf.id};
     } else {
-        // Nó interno: encontrar filho apropriado
+      
         int i = 0;
         while (i < (int)node.keys.size() && key >= node.keys[i]) i++;
         InsertionResult result = insertRecursive(node.pointers[i], key, dataLine);
@@ -163,7 +163,7 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
             return {};
         }
 
-        // Split de nó interno
+       
         BPlusNode newInternal;
         newInternal.id = nextNodeId++;
         newInternal.isLeaf = false;
@@ -201,12 +201,12 @@ int insert(int key) {
     InsertionResult result = insertRecursive(0, key, dataLine);
 
     if (result.newChildCreated) {
-        // Criar nova raiz
+      
         BPlusNode newRoot;
         newRoot.id = nextNodeId++;
         newRoot.isLeaf = false;
         newRoot.keys.push_back(result.promotedKey);
-        newRoot.pointers.push_back(0); // antigo root
+        newRoot.pointers.push_back(0); 
         newRoot.pointers.push_back(result.newChildNodeId);
         writeLineToFile(INDEX_FILE, newRoot.id, newRoot.serialize());
     }
@@ -236,7 +236,7 @@ int search(int key) {
     return 0;
 }
 void printNode(const BPlusNode &node, const vector<BPlusNode> &allNodes, int level = 0) {
-    string indent(level * 4, ' '); // Indentação com 4 espaços por nível
+    string indent(level * 4, ' '); 
 
     cout << indent << (node.isLeaf ? "[Leaf]" : "[Internal]") << " Node ID: " << node.id << "\n";
     cout << indent << "  Keys: ";
