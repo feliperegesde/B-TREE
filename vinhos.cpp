@@ -281,7 +281,7 @@ int main() {
     ifstream input(INPUT_FILE);
     ofstream output(OUTPUT_FILE);
     string line;
-
+    
     getline(input, line);
     output << line << "\n";
     if (line.substr(0, 4) == "FLH/") {
