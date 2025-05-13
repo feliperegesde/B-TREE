@@ -7,7 +7,7 @@
 
 using namespace std;
 
-const string DATA_FILE = "C:/Users/felipe.albuquerque/Downloads/vinhos.csv/vinhos.csv";
+const string DATA_FILE = "vinhos.csv";
 const string INDEX_FILE = "indice.txt";
 const string INPUT_FILE = "in.txt";
 const string OUTPUT_FILE = "out.txt";
@@ -104,11 +104,18 @@ int readRootId() {
     return id;
 }
 
-
 int findDataLineByYear(int key) {
     ifstream data(DATA_FILE);
     string line;
     int lineNum = 0;
+    
+    if (!data.is_open()) {
+        cerr << "Erro ao abrir o arquivo: " << DATA_FILE << endl;
+        return -1;
+    }
+    getline(data, line); 
+    lineNum++;
+
     while (getline(data, line)) {
         stringstream ss(line);
         string campo;
@@ -126,6 +133,7 @@ int findDataLineByYear(int key) {
     }
     return -1;
 }
+
 
 InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
     BPlusNode node = BPlusNode::deserialize(readLineFromFile(INDEX_FILE, nodeId), nodeId);
@@ -266,6 +274,10 @@ int calculateHeight(int nodeId) {
 }
 
 int main() {
+
+
+    int linha = findDataLineByYear(1997);
+    cout << "Linha do vinho 1997: " << linha << endl;
     ifstream input(INPUT_FILE);
     ofstream output(OUTPUT_FILE);
     string line;
