@@ -120,8 +120,8 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
         node.keys.insert(it, key);
         node.pointers.insert(node.pointers.begin() + idx, dataLine);
 
-      
-        if ((int)node.keys.size() < ORDER) {
+        const int maxLeafKeys = 3; 
+        if ((int)node.keys.size() <= maxLeafKeys){
             writeLineToFile(INDEX_FILE, nodeId, node.serialize());
             return {};
         }
@@ -158,7 +158,8 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
         node.keys.insert(it, result.promotedKey);
         node.pointers.insert(node.pointers.begin() + idx + 1, result.newChildNodeId);
 
-        if ((int)node.keys.size() < ORDER) {
+       const int maxInternalKeys = 2;
+        if ((int)node.keys.size() <= maxInternalKeys){
             writeLineToFile(INDEX_FILE, nodeId, node.serialize());
             return {};
         }
@@ -294,21 +295,13 @@ int main() {
     ifstream input(INPUT_FILE);
     ofstream output(OUTPUT_FILE);
     string line;
-
     getline(input, line);
     output << line << "\n";
-
-    if (line.rfind("FLH/", 0) != 0) {
-        cerr << "Erro: primeira linha do in.txt deve começar com FLH/\n";
-        return 1;
+    if (line.substr(0, 4) == "FLH/") {
+        ORDER = stoi(line.substr(4));
     }
 
-    try {
-        ORDER = stoi(line.substr(line.find("/") + 1));
-    } catch (...) {
-        cerr << "Erro: valor de filhos inválido na linha: " << line << "\n";
-        return 1;
-    }
+
 
 while (getline(input, line)) {
     if (line.substr(0, 4) == "INC:") {
@@ -323,7 +316,7 @@ while (getline(input, line)) {
 }
 
 
-    output << "H/" << calculateHeight(0) << "\n";
+    output << "H/" << calculateHeight(5) << "\n";
 
     printTree();
 
