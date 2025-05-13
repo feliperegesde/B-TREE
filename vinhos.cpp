@@ -11,9 +11,11 @@ const string DATA_FILE = "C:/Users/felipe.albuquerque/Downloads/vinhos.csv/vinho
 const string INDEX_FILE = "indice.txt";
 const string INPUT_FILE = "in.txt";
 const string OUTPUT_FILE = "out.txt";
+const string META_FILE = "meta.txt";
 
 int ORDER = 3;
 int nextNodeId = 0;
+
 struct InsertionResult {
     bool newChildCreated = false;
     int promotedKey = -1;
@@ -87,6 +89,20 @@ void writeLineToFile(const string &filename, int lineNumber, const string &newLi
     ofstream out(filename);
     for (const string &l : lines) out << l << "\n";
 }
+void writeRootId(int id) {
+    ofstream meta(META_FILE);
+    meta << id << endl;
+}
+int readRootId() {
+    ifstream meta(META_FILE);
+    int id = 0;
+    if (meta.is_open()) {
+        meta >> id;
+    } else {
+        writeRootId(0);
+    }
+    return id;
+}
 
 
 int findDataLineByYear(int key) {
@@ -98,7 +114,7 @@ int findDataLineByYear(int key) {
         string campo;
         int col = 0;
         while (getline(ss, campo, ',')) {
-            if (col == 2) { 
+            if (col == 2) {
                 try {
                     if (stoi(campo) == key) return lineNum;
                 } catch (...) {}
@@ -110,23 +126,21 @@ int findDataLineByYear(int key) {
     }
     return -1;
 }
+
 InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
     BPlusNode node = BPlusNode::deserialize(readLineFromFile(INDEX_FILE, nodeId), nodeId);
 
     if (node.isLeaf) {
-        
         auto it = lower_bound(node.keys.begin(), node.keys.end(), key);
         int idx = it - node.keys.begin();
         node.keys.insert(it, key);
         node.pointers.insert(node.pointers.begin() + idx, dataLine);
 
-        const int maxLeafKeys = 3; 
-        if ((int)node.keys.size() <= maxLeafKeys){
+        if ((int)node.keys.size() <= ORDER) {
             writeLineToFile(INDEX_FILE, nodeId, node.serialize());
             return {};
         }
 
-       
         BPlusNode newLeaf;
         newLeaf.id = nextNodeId++;
         newLeaf.isLeaf = true;
@@ -145,26 +159,22 @@ InsertionResult insertRecursive(int nodeId, int key, int dataLine) {
 
         return {true, newLeaf.keys[0], newLeaf.id};
     } else {
-      
         int i = 0;
         while (i < (int)node.keys.size() && key >= node.keys[i]) i++;
         InsertionResult result = insertRecursive(node.pointers[i], key, dataLine);
 
         if (!result.newChildCreated) return {};
 
-     
         auto it = upper_bound(node.keys.begin(), node.keys.end(), result.promotedKey);
         int idx = it - node.keys.begin();
         node.keys.insert(it, result.promotedKey);
         node.pointers.insert(node.pointers.begin() + idx + 1, result.newChildNodeId);
 
-       const int maxInternalKeys = 2;
-        if ((int)node.keys.size() <= maxInternalKeys){
+        if ((int)node.keys.size() <= ORDER - 1) {
             writeLineToFile(INDEX_FILE, nodeId, node.serialize());
             return {};
         }
 
-       
         BPlusNode newInternal;
         newInternal.id = nextNodeId++;
         newInternal.isLeaf = false;
@@ -189,41 +199,50 @@ int insert(int key) {
     if (dataLine == -1) return 0;
 
     ifstream idxFile(INDEX_FILE);
-    if (!idxFile.good()) {
+    string temp;
+    int lines = 0;
+    while (getline(idxFile, temp)) lines++;
+    nextNodeId = lines;
+
+    int rootId;
+    idxFile.clear();
+    idxFile.seekg(0, ios::beg);
+    if (!idxFile.good() || lines == 0) {
         BPlusNode root;
-        root.id = nextNodeId++;
+        rootId = nextNodeId++;
+        root.id = rootId;
         root.isLeaf = true;
         root.keys.push_back(key);
         root.pointers.push_back(dataLine);
         writeLineToFile(INDEX_FILE, root.id, root.serialize());
+        writeRootId(root.id);
         return 1;
     }
 
-    InsertionResult result = insertRecursive(0, key, dataLine);
+    rootId = readRootId();
+    InsertionResult result = insertRecursive(rootId, key, dataLine);
 
     if (result.newChildCreated) {
-      
         BPlusNode newRoot;
         newRoot.id = nextNodeId++;
         newRoot.isLeaf = false;
         newRoot.keys.push_back(result.promotedKey);
-        newRoot.pointers.push_back(0); 
+        newRoot.pointers.push_back(rootId);
         newRoot.pointers.push_back(result.newChildNodeId);
         writeLineToFile(INDEX_FILE, newRoot.id, newRoot.serialize());
+        writeRootId(newRoot.id);
     }
 
     return 1;
 }
 
-
 int search(int key) {
     ifstream idxFile(INDEX_FILE);
     if (!idxFile.good()) return 0;
 
-    string line;
-    int id = 0;
-    while (getline(idxFile, line)) {
-        BPlusNode node = BPlusNode::deserialize(line, id);
+    int nodeId = readRootId();
+    while (true) {
+        BPlusNode node = BPlusNode::deserialize(readLineFromFile(INDEX_FILE, nodeId), nodeId);
         if (node.isLeaf) {
             for (size_t i = 0; i < node.keys.size(); i++) {
                 if (node.keys[i] == key) {
@@ -231,57 +250,12 @@ int search(int key) {
                     return !data.empty() ? 1 : 0;
                 }
             }
+            return 0;
+        } else {
+            int i = 0;
+            while (i < (int)node.keys.size() && key >= node.keys[i]) i++;
+            nodeId = node.pointers[i];
         }
-        id++;
-    }
-    return 0;
-}
-void printNode(const BPlusNode &node, const vector<BPlusNode> &allNodes, int level = 0) {
-    string indent(level * 4, ' '); 
-
-    cout << indent << (node.isLeaf ? "[Leaf]" : "[Internal]") << " Node ID: " << node.id << "\n";
-    cout << indent << "  Keys: ";
-    for (int k : node.keys) cout << k << " ";
-    cout << "\n";
-
-    if (node.isLeaf) {
-        cout << indent << "  Pointers (data lines): ";
-        for (int p : node.pointers) cout << p << " ";
-        cout << "\n";
-        if (node.nextLeaf != -1)
-            cout << indent << "  Next Leaf -> " << node.nextLeaf << "\n";
-    } else {
-        cout << indent << "  Pointers (child node IDs): ";
-        for (int p : node.pointers) cout << p << " ";
-        cout << "\n";
-        for (int p : node.pointers) {
-            if (p >= 0 && p < (int)allNodes.size())
-                printNode(allNodes[p], allNodes, level + 1);
-        }
-    }
-}
-
-void printTree() {
-    ifstream idxFile(INDEX_FILE);
-    if (!idxFile.good()) {
-        cout << "Árvore vazia.\n";
-        return;
-    }
-
-    vector<BPlusNode> nodes;
-    string line;
-    int id = 0;
-    while (getline(idxFile, line)) {
-        if (!line.empty())
-            nodes.push_back(BPlusNode::deserialize(line, id));
-        id++;
-    }
-
-    if (!nodes.empty()) {
-        cout << "\n=== Estrutura da Árvore B+ ===\n";
-        printNode(nodes[0], nodes);
-    } else {
-        cout << "Nenhum nó encontrado.\n";
     }
 }
 
@@ -295,31 +269,27 @@ int main() {
     ifstream input(INPUT_FILE);
     ofstream output(OUTPUT_FILE);
     string line;
+
     getline(input, line);
     output << line << "\n";
     if (line.substr(0, 4) == "FLH/") {
         ORDER = stoi(line.substr(4));
     }
 
-
-
-while (getline(input, line)) {
-    if (line.substr(0, 4) == "INC:") {
-        int key = stoi(line.substr(4));
-        int inserted = insert(key);  
-        output << "INC:" << key << "/" << inserted << "\n";
-    } else if (line.substr(0, 5) == "BUS=:") {
-        int key = stoi(line.substr(5));
-        int count = search(key);
-        output << "BUS=:" << key << "/" << count << "\n";
+    while (getline(input, line)) {
+        if (line.substr(0, 4) == "INC:") {
+            int key = stoi(line.substr(4));
+            int inserted = insert(key);
+            output << "INC:" << key << "/" << inserted << "\n";
+        } else if (line.substr(0, 5) == "BUS=:") {
+            int key = stoi(line.substr(5));
+            int found = search(key);
+            output << "BUS=:" << key << "/" << found << "\n";
+        }
     }
-}
 
-
-    output << "H/" << calculateHeight(5) << "\n";
-
-    printTree();
-
+    output << "H/" << calculateHeight(readRootId()) << "\n";
     return 0;
 }
+
 
